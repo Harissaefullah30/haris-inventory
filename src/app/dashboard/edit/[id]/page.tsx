@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Save, Package, Tag, Box, CheckCircle2, DollarSign } from 'lucide-react'
+import { ArrowLeft, Save, Package, Tag, Box, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
-export default function EditItemPage() {
+// 1. Komponen isi dipisahkan
+function EditItemContent() {
   const router = useRouter()
   const params = useParams()
   const itemId = params.id as string
@@ -22,7 +23,7 @@ export default function EditItemPage() {
 
   useEffect(() => {
     const fetchItem = async () => {
-      const { data, error } = await supabase.from('inventory').select('*').eq('id', itemId).single()
+      const { data } = await supabase.from('inventory').select('*').eq('id', itemId).single()
       if (data) {
         setName(data.item_name)
         setCategory(data.category)
@@ -146,5 +147,14 @@ export default function EditItemPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// 2. Fungsi utama yang membungkus dengan Suspense
+export default function EditItemPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F5F7FA] p-8 text-center text-gray-500">Memuat form edit...</div>}>
+      <EditItemContent />
+    </Suspense>
   )
 }
