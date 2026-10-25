@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { LogOut, Plus, Package, Search, Trash2, Box, TrendingUp, Printer, Pencil, Wrench } from 'lucide-react'
+import { LogOut, Plus, Package, Search, Trash2, Box, TrendingUp, Printer, Pencil, Wrench, Filter, ArrowUpDown } from 'lucide-react'
 import Link from 'next/link'
 
 type Item = {
@@ -20,14 +20,17 @@ export default function DashboardPage() {
   const [items, setItems] = useState<Item[]>([])
   const [maintenanceCount, setMaintenanceCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  
+  // State untuk Pencarian, Filter, dan Sorting
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterCategory, setFilterCategory] = useState('Semua')
+  const [sortBy, setSortBy] = useState('Terbaru')
 
   const fetchItemsAndMaintenance = async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return router.push('/')
 
-    // 1. Ambil data inventaris
     const { data } = await supabase
       .from('inventory')
       .select('*')
@@ -36,7 +39,6 @@ export default function DashboardPage() {
 
     if (data) setItems(data)
 
-    // 2. Ambil jumlah barang yang sedang diservis
     const { count } = await supabase
       .from('maintenance_logs')
       .select('*', { count: 'exact', head: true })
@@ -62,10 +64,22 @@ export default function DashboardPage() {
     fetchItemsAndMaintenance()
   }
 
-  const filteredItems = items.filter(item => 
-    item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // --- LOGIKA FILTER, PENCARIAN, DAN SORTING ---
+  let processedItems = items.filter(item => {
+    const matchSearch = item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        item.category.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchCategory = filterCategory === 'Semua' || item.category === filterCategory
+    return matchSearch && matchCategory
+  })
+
+  // Logika Sorting
+  if (sortBy === 'Harga Termahal') {
+    processedItems.sort((a, b) => b.price - a.price)
+  } else if (sortBy === 'Harga Termurah') {
+    processedItems.sort((a, b) => a.price - b.price)
+  } else if (sortBy === 'Nama A-Z') {
+    processedItems.sort((a, b) => a.item_name.localeCompare(b.item_name))
+  }
 
   const totalAset = items.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0)
 
@@ -90,9 +104,7 @@ export default function DashboardPage() {
           <p className="text-gray-500 text-sm mt-1">Pantau seluruh aset dan barang berhargamu di sini.</p>
         </div>
 
-        {/* Grid Ringkasan */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {/* Card 1: Total Barang */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5 relative overflow-hidden group print:border-gray-300 print:shadow-none">
             <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-teal-700 text-white rounded-2xl flex items-center justify-center shadow-lg print:hidden"><Box size={28} /></div>
             <div>
@@ -101,7 +113,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 2: Total Aset */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5 relative overflow-hidden group print:border-gray-300 print:shadow-none">
             <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-700 text-white rounded-2xl flex items-center justify-center shadow-lg print:hidden"><TrendingUp size={28} /></div>
             <div>
@@ -110,7 +121,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: Barang Diservis (BARU) */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5 relative overflow-hidden group print:border-gray-300 print:shadow-none">
             <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-2xl flex items-center justify-center shadow-lg print:hidden"><Wrench size={28} /></div>
             <div>
@@ -120,18 +130,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-6 print:hidden">
+        {/* Bar Pencarian & Tombol Aksi */}
+        <div className="flex flex-col md:flex-row gap-4 mb-4 print:hidden">
           <div className="flex-1 bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 focus-within:ring-2 focus-within:ring-teal-500 transition-all">
             <Search size={20} className="text-gray-400 ml-2" />
             <input type="text" placeholder="Cari nama barang atau kategori..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none w-full text-sm text-gray-700 py-2" />
           </div>
           
           <div className="flex gap-2">
-            {/* Tombol Maintenance (BARU) */}
             <Link href="/maintenance" className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
               <Wrench size={20} /> Perbaikan
             </Link>
-
             <button onClick={() => window.print()} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
               <Printer size={20} /> Cetak
             </button>
@@ -141,14 +150,42 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* BARU: Bar Filter & Sorting */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6 print:hidden">
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+            <Filter size={16} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-500">Filter:</span>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-teal-700 cursor-pointer">
+              <option value="Semua">Semua Kategori</option>
+              <option value="Elektronik">Elektronik</option>
+              <option value="Pakaian">Pakaian</option>
+              <option value="Perabot">Perabot</option>
+              <option value="Kendaraan">Kendaraan</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+            <ArrowUpDown size={16} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-500">Urutkan:</span>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-teal-700 cursor-pointer">
+              <option value="Terbaru">Terbaru</option>
+              <option value="Nama A-Z">Nama (A-Z)</option>
+              <option value="Harga Termahal">Harga (Termahal)</option>
+              <option value="Harga Termurah">Harga (Termurah)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tabel Daftar Barang */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-gray-300">
           {loading ? (
             <div className="p-12 text-center text-teal-600 font-medium animate-pulse">Memuat data...</div>
-          ) : filteredItems.length === 0 ? (
+          ) : processedItems.length === 0 ? (
             <div className="p-16 text-center flex flex-col items-center justify-center">
               <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-4 print:hidden"><Package size={48} className="text-gray-300" /></div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">Belum ada barang</h3>
-              <p className="text-gray-500 text-sm">Klik "Tambah" untuk mulai mendata.</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">Tidak ada barang ditemukan</h3>
+              <p className="text-gray-500 text-sm">Coba ubah kata kunci atau filter kategori.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -164,7 +201,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredItems.map(item => (
+                  {processedItems.map(item => (
                     <tr key={item.id} className="hover:bg-teal-50/30 transition-colors group">
                       <td className="px-6 py-4 font-bold text-gray-800 text-sm print:text-black">{item.item_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
